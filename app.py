@@ -238,13 +238,13 @@ def _coral_databases():
     
 def _real_time_prediction():
     st3_1_1, st3_1_2, st3_1_3, st3_1_4,st3_1_5, st3_1_6 = st.columns([2,2,2,2,5,1])
-    lat_ = st3_1_1.number_input('Latitude', -90.0, 90.0,32.270120,format="%.6f",key="lat_3",help='Select a value between -90 and 90')
-    long_ = st3_1_2.number_input('Longitude', -180.0, 180.0,-64.776210,format="%.6f",key="long_3",help='Select a value between -180 and 180')
+    lat_ = st3_1_1.number_input('Latitude', -90.0, 90.0,24.676480,format="%.6f",key="lat_3",help='Select a value between -90 and 90')
+    long_ = st3_1_2.number_input('Longitude', -180.0, 180.0,-76.216350,format="%.6f",key="long_3",help='Select a value between -180 and 180')
     radius_ = st3_1_3.number_input('Radius', 30, 1000, 100, key="radius_3",help='Select a value between 30 and 1000 meters',step=10)    
     # date_ = st3_1_4.date_input("Date",date.today())
     def start_capture():
         geometry = ee.Geometry.Point([long_, lat_]).buffer(radius_)
-        if lat_==32.270120 and long_==-64.776210 and radius_==100:
+        if lat_==24.676480 and long_==-76.216350 and radius_==100:
             landsat8_df = pd.read_pickle("Output/landsat8_df_default.pkl")
         else:
             fc = ee.FeatureCollection([ee.Feature(geometry)])
@@ -265,7 +265,7 @@ def _real_time_prediction():
             landsat8_df["date"] = pd.to_datetime(landsat8_df["date"])
             landsat8_df = landsat8_df.sort_values("date",ascending=True).reset_index(drop=True)
             landsat8_df = landsat8_df.dropna().reset_index(drop=True)
-            # landsat8_df.to_pickle("../Output/landsat8_df_default.pkl")
+            landsat8_df.to_pickle("Output/landsat8_df_default.pkl")
         return landsat8_df,geometry
     
     def run_cap():
@@ -319,7 +319,7 @@ def _real_time_prediction():
                     '<br>Class: <b>%{marker.color}</b><br>'+                                
                     '<b>%{text}</b>',text = dates))
                 fig.update_layout(margin=dict(l=0,r=0,b=0,t=50))
-                fig.update_layout(title_text="Model Predictions Over Time",title_x=0.5,title_y=0.95,
+                fig.update_layout(xaxis_title="Date",yaxis_title="Coral Probability",title_text="Model Predictions Over Time",title_x=0.5,title_y=0.95,
                                  width=1200,height=500,template="plotly_white",font=dict(size=16))
                 st3_2_1.plotly_chart(fig,use_container_width=True)
             st3_1_6.success('', icon="✅")
@@ -364,13 +364,17 @@ def _landsat8_experiments():
     model_summaries = data_file["ModelSummaries"].copy()
     gb = GridOptionsBuilder.from_dataframe(model_summaries)
     # gb.configure_pagination(paginationAutoPageSize=True)
-    # gb.configure_side_bar()
+    # gb.configure_side_bar() #add a side bar
+    # gb.configure_default_column(groupable=True,value=True,enableRowGroup=True,aggFunc="sum",editable=True)
+    
     gridOptions = gb.build()
     with st.container():
-        AgGrid(model_summaries, gridOptions=gridOptions,
+        AgGrid(model_summaries, 
+               gridOptions=gridOptions,
                 data_return_mode='AS_INPUT',
                 update_mode='MODEL_CHANGED',
                 fit_columns_on_grid_load=False,
+                # enable_enterprise_modules=True,
                 theme='dark',height=270
                 )
     # gb = GridOptionsBuilder.from_dataframe(model_summaries)
