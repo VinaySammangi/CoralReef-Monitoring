@@ -13,7 +13,8 @@ import geemap
 import pandas as pd
 import geopandas as gpd
 import plotly.express as px
-from st_aggrid import GridOptionsBuilder, AgGrid
+from st_aggrid import AgGrid, GridUpdateMode, JsCode
+from st_aggrid.grid_options_builder import GridOptionsBuilder
 from datetime import date
 from datetime import datetime
 import eemont
@@ -155,6 +156,7 @@ def _load_data():
     data_dict["final_gdf"] = final_gdf
     data_dict["boundaries_regions"] = gpd.read_file('Output/boundaries_regions.geojson')
     data_dict["global_model"] = joblib.load("Output/global_model.sav")
+    data_dict["ModelSummaries"] = df = pd.read_excel("Output/ModelSummaries.xlsx")
     return data_dict
 
 def _data_exploration():
@@ -169,7 +171,7 @@ def _data_exploration():
         _coral_databases()
 
 def _coral_databases():
-    st1_31, st1_32 = st.columns([2,1],gap="large")
+    st1_31, st1_32 = st.columns([2,1],gap="medium")
     data_file = _load_data()
     coral_df = data_file["coral_df"].copy()
     boundaries_regions = data_file["boundaries_regions"].copy()
@@ -192,10 +194,11 @@ def _coral_databases():
     fig = px.scatter_mapbox(final_gdf_filtered, lat="lat", lon="long", hover_data=["ReefRegion","year", "month","hour"],color = "Class",
                             color_discrete_map={"Coral":"green","NonCoral":"red"}, opacity=0.2)
     fig.update_layout(
+        title_text="Region-Wise Coral & NonCoral Data",title_x=0.5,title_y=0.95,
         mapbox = {
             'style': "open-street-map",
-            'center': { 'lon': -142, 'lat':-17},
-            'zoom': 1, 'layers': layers_},
+            'center': { 'lon': -130, 'lat':-8},
+            'zoom': 2, 'layers': layers_},
         legend=dict(
         x=0,
         y=1,
@@ -204,8 +207,9 @@ def _coral_databases():
             family="sans-serif",
             size=12,
             color="black"
-        ),),
-        margin = {'l':0, 'r':20, 'b':0, 't':20})
+        )),
+        margin = {'l':0, 'r':0, 'b':0, 't':50},height=500
+        )
     st1_31.plotly_chart(fig,use_container_width=True)
     
     counts_df = coral_df.groupby("ReefRegion").agg({"ID":"count"}).reset_index()
@@ -216,29 +220,22 @@ def _coral_databases():
      "Eastern Tropical Pacific":"Cluster1"})
     counts_df.columns = ["Region","Coral Count","Cluster"]
     counts_df = counts_df.sort_values("Coral Count",ascending=False)
-    st1_32.markdown("<h2 width: fit-content; style='text-align: center; color: gray;'>Region-Wise Coral Data</h2>", unsafe_allow_html=True)
+    st1_32.markdown("<h3 width: fit-content; style='text-align: center; color: gray;'>Region-Wise Coral Data</h3>", unsafe_allow_html=True)
     st1_32.markdown("*Clusters are defined based on the closest regions and the number of data points in each cluster.*")
     gb = GridOptionsBuilder.from_dataframe(counts_df)
     # gb.configure_pagination(paginationAutoPageSize=True)
     # gb.configure_side_bar()
     gridOptions = gb.build()
+    
     with st1_32.container():
         AgGrid(counts_df, gridOptions=gridOptions,
-               # data_return_mode='AS_INPUT',
-               # update_mode='MODEL_CHANGED',
+                data_return_mode='AS_INPUT',
+                update_mode='MODEL_CHANGED',
                 fit_columns_on_grid_load=True,
-               theme='dark',
-               height=300)
+                theme='dark',height=300
+                )
     
     
-def _model_results():
-    tab2_1, tab2_2, tab2_3 = st.tabs(["2.1. Landsat","2.2. Calipso","2.3. Landsat + Calipso"])
-    
-    pass
-
-def _model_visualization():
-    pass
-
 def _real_time_prediction():
     st3_1_1, st3_1_2, st3_1_3, st3_1_4,st3_1_5, st3_1_6 = st.columns([2,2,2,2,5,1])
     lat_ = st3_1_1.number_input('Latitude', -90.0, 90.0,32.270120,format="%.6f",key="lat_3",help='Select a value between -90 and 90')
@@ -298,7 +295,8 @@ def _real_time_prediction():
                 'type': "fill", 'below': "traces", 'color': "green"},
                 {'source': json.loads(final_gdf.loc[final_gdf["Coral_Class"]=="NonCoral",].geometry.to_json()),
                 'type': "fill", 'below': "traces", 'color': "red"}]},
-                        margin = {'l':0, 'r':0, 'b':0, 't':50},height=500)                
+                        margin = {'l':0, 'r':0, 'b':0, 't':50},height=500
+                        )                
                 st3_2_2.plotly_chart(fig,use_container_width=True)
                 
                 global_model = data_file["global_model"]
@@ -329,7 +327,6 @@ def _real_time_prediction():
     run_cap()
 
     
-
 def download_landsat8(fc_,start_date,end_date,bands_):
     import eemont
     json_object = json.loads(json_data, strict=False)
@@ -355,11 +352,125 @@ def download_landsat8(fc_,start_date,end_date,bands_):
     return time_df_filtered
 
     
-def _vitality_prediction():
+def _model_results():
+    tab2_1, tab2_2, tab2_3 = st.tabs(["2.1. Landsat","2.2. Calipso","2.3. Landsat + Calipso"])
+    with tab2_1:
+        _landsat8_experiments()
     pass
 
+def _landsat8_experiments():
+    st.markdown("<h3 width: fit-content; style='text-align: center; color: gray;'>Model Results : Summary</h3>", unsafe_allow_html=True)
+    data_file = _load_data()
+    model_summaries = data_file["ModelSummaries"].copy()
+    gb = GridOptionsBuilder.from_dataframe(model_summaries)
+    # gb.configure_pagination(paginationAutoPageSize=True)
+    # gb.configure_side_bar()
+    gridOptions = gb.build()
+    with st.container():
+        AgGrid(model_summaries, gridOptions=gridOptions,
+                data_return_mode='AS_INPUT',
+                update_mode='MODEL_CHANGED',
+                fit_columns_on_grid_load=False,
+                theme='dark',height=270
+                )
+    # gb = GridOptionsBuilder.from_dataframe(model_summaries)
+    # # gb.configure_pagination(enabled=False)
+    # gridOptions = gb.build()
+    # grid_table = AgGrid(model_summaries,
+    #                     gridOptions=gridOptions,
+    #                     fit_columns_on_grid_load=False,
+    #                     height=270,
+    #                     theme='dark',
+    #                     update_mode=GridUpdateMode.GRID_CHANGED,
+    #                     reload = True,
+    #                     allow_unsafe_jscode=True,
+    #             )
+        
+        # alpine,material
+    st.markdown('**Cluster1 Regions:** Northern Caribbean - Florida,Bahamas , Southeastern Caribbean , Mesoamerica , Bermuda , Eastern Tropical Pacific')
+    st.markdown('**Cluster2 Regions:** Great Barrier Reef and Torres Strait , Central South Pacific , Subtropical Eastern Australia , Coral Sea')
+    
+    st.markdown("<h3 width: fit-content; style='text-align: center; color: gray;'>Model Results : Details</h3>", unsafe_allow_html=True)
+
+    st.markdown("<h4 width: fit-content; style='text-align: left; color: gray;'>1. Model 1</h4>", unsafe_allow_html=True)
+    st.markdown('Model trained and predicted on the global dataset using Stratified KFold Cross Validation')
+    
+    image1 = Image.open('imgs/global_cm.png')
+    image2 = Image.open('imgs/global_fi.png')
+    image1 = image1.resize((600, 550))
+    image2 = image2.resize((600, 550))
+    st2_1_1, st2_1_2 = st.columns([2,2],gap="large")
+    st2_1_1.image(image1, caption='Classification Report')
+    st2_1_2.image(image2, caption='Feature Importance')
+    
+    st.markdown("<h4 width: fit-content; style='text-align: left; color: gray;'>2. Model 2</h4>", unsafe_allow_html=True)
+    st.markdown('Model trained and predicted on the Cluster 1 regions using Stratified KFold Cross Validation')
+    
+    image1 = Image.open('imgs/cluster1_cm.png')
+    image2 = Image.open('imgs/cluster1_fi.png')
+    image1 = image1.resize((600, 550))
+    image2 = image2.resize((600, 550))
+    st2_1_3, st2_1_4 = st.columns([2,2],gap="large")
+    st2_1_3.image(image1, caption='Classification Report')
+    st2_1_4.image(image2, caption='Feature Importance')
+    
+    st.markdown("<h4 width: fit-content; style='text-align: left; color: gray;'>3. Model 3</h4>", unsafe_allow_html=True)
+    st.markdown('Model trained and predicted on the Cluster 2 regions using Stratified KFold Cross Validation')
+    
+    image1 = Image.open('imgs/cluster2_cm.png')
+    image2 = Image.open('imgs/cluster2_fi.png')
+    image1 = image1.resize((600, 550))
+    image2 = image2.resize((600, 550))
+    st2_1_5, st2_1_6 = st.columns([2,2],gap="large")
+    st2_1_5.image(image1, caption='Classification Report')
+    st2_1_6.image(image2, caption='Feature Importance')
+
+    st.markdown("<h4 width: fit-content; style='text-align: left; color: gray;'>4. Model 4</h4>", unsafe_allow_html=True)
+    st.markdown('Model trained on Cluster 1 regions and predicted on Cluster 2 regions using Train-Test Strategy')
+    
+    image1 = Image.open('imgs/cluster1_cluster2_cm.png')
+    image2 = Image.open('imgs/cluster1_cluster2_fi.png')
+    image1 = image1.resize((600, 550))
+    image2 = image2.resize((600, 550))
+    st2_1_7, st2_1_8 = st.columns([2,2],gap="large")
+    st2_1_7.image(image1, caption='Classification Report')
+    st2_1_8.image(image2, caption='Feature Importance')
+
+    st.markdown("<h4 width: fit-content; style='text-align: left; color: gray;'>5. Model 5</h4>", unsafe_allow_html=True)
+    st.markdown('Model trained on Cluster 2 regions and predicted on Cluster 1 regions using Train-Test Strategy')
+    
+    image1 = Image.open('imgs/cluster2_cluster1_cm.png')
+    image2 = Image.open('imgs/cluster2_cluster1_fi.png')
+    image1 = image1.resize((600, 550))
+    image2 = image2.resize((600, 550))
+    st2_1_9, st2_1_10 = st.columns([2,2],gap="large")
+    st2_1_9.image(image1, caption='Classification Report')
+    st2_1_10.image(image2, caption='Feature Importance')
+
+    st.markdown("<h4 width: fit-content; style='text-align: left; color: gray;'>6. Model 6</h4>", unsafe_allow_html=True)
+    st.markdown('Model trained on Northern Caribbean - Florida,Bahamas region and predicted on other Cluster 1 regions using Train-Test Strategy')
+    
+    image1 = Image.open('imgs/ncfb_c1_cm.png')
+    image2 = Image.open('imgs/ncfb_c1_fi.png')
+    image1 = image1.resize((600, 550))
+    image2 = image2.resize((600, 550))
+    st2_1_11, st2_1_12 = st.columns([2,2],gap="large")
+    st2_1_11.image(image1, caption='Classification Report')
+    st2_1_12.image(image2, caption='Feature Importance')
+
+    st.markdown("<h4 width: fit-content; style='text-align: left; color: gray;'>7. Model 7</h4>", unsafe_allow_html=True)
+    st.markdown('Model trained on Great Barrier Reef and Torres Strait region and predicted on other Cluster 2 regions using Train-Test Strategy')
+    
+    image1 = Image.open('imgs/gbr_c2_cm.png')
+    image2 = Image.open('imgs/gbr_c2_fi.png')
+    image1 = image1.resize((600, 550))
+    image2 = image2.resize((600, 550))
+    st2_1_13, st2_1_14 = st.columns([2,2],gap="large")
+    st2_1_13.image(image1, caption='Classification Report')
+    st2_1_14.image(image2, caption='Feature Importance')
+
 # tab2, tab1, tab3, tab4 = st.tabs(["2. Model Results","1. Data Exploration","3. Real-time Prediction","4. Vitality Prediction"])
-tab2, tab1, tab3 = st.tabs(["2. Model Results","1. Data Exploration","3. Real-time Prediction"])
+tab1, tab2, tab3 = st.tabs(["1. Data Exploration","2. Model Results","3. Real-time Prediction"])
 
 with tab1:
     _data_exploration()
